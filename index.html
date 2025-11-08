@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TURN SCHEDULER</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-primary: #06D6A0; /* Vibrant Green/Teal */
+            --color-bg-dark: #111827; /* Gray 900 */
+            --color-bg-deep: #0a0a0a; /* Deep Black/Gray for body */
+            --color-bg-card: #1f2937; /* Gray 800 */
+            --color-text: #e5e7eb; /* Gray 200 */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--color-bg-deep);
+            color: var(--color-text);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 1rem;
+        }
+        .container {
+            max-width: 600px;
+            width: 100%;
+        }
+        .card {
+            background-color: var(--color-bg-card);
+            padding: 1.5rem;
+            border-radius: 16px; /* Slightly more rounded */
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05); /* Soft inner border */
+            margin-bottom: 1.5rem; /* Increased spacing */
+        }
+        
+        /* Hidden input styles are kept for functionality */
+        .input-field, .select-field {
+            background-color: var(--color-bg-dark);
+            border: 1px solid #374151;
+            color: var(--color-text);
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            width: 100%;
+            margin-top: 0.25rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .input-field:focus, .select-field:focus {
+            border-color: var(--color-primary);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(6, 214, 160, 0.4); 
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 700;
+            transition: background-color 0.2s, transform 0.1s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-primary {
+            background-color: var(--color-primary);
+            color: var(--color-bg-deep); /* Text color for contrast */
+        }
+        .btn-primary:hover {
+            background-color: #04b888; /* Darker primary */
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(6, 214, 160, 0.3);
+        }
+        .btn-secondary {
+            background-color: #374151; /* Darker secondary background */
+            color: var(--color-primary);
+            border: 1px solid #4b5563;
+        }
+        .btn-secondary:hover {
+            background-color: #4b5563;
+        }
+        .member-item {
+            /* Kept simple for hidden inputs */
+            display: flex;
+            align-items: center;
+            padding: 0.5rem;
+            background-color: #374151;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+        }
+        .current-turn-card {
+            background: linear-gradient(135deg, var(--color-primary) 0%, #059669 100%);
+            color: #1f2937;
+            border: none;
+            text-shadow: 0 0.5px 0.5px rgba(0, 0, 0, 0.2);
+            padding: 2rem 1.5rem; /* Increased padding */
+        }
+        .current-turn-card #current-member {
+            color: var(--color-bg-deep); /* Deep text color for highest contrast */
+            font-size: 3rem; 
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            letter-spacing: -1px; /* Tighter letter spacing for bold look */
+        }
+        @media (min-width: 640px) {
+            .current-turn-card #current-member {
+                font-size: 4.5rem; /* Slightly larger for desktop */
+            }
+        }
+        /* Style for upcoming turns list items */
+        .upcoming-turn-item {
+            background-color: var(--color-bg-card); /* Using card background for separation */
+            border-bottom: 1px solid #1f2937; 
+            transition: background-color 0.2s;
+        }
+        .upcoming-turn-item:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body class="p-4">
+
+    <!-- Custom Alert Modal -->
+    <div id="custom-alert-modal" class="fixed inset-0 bg-black bg-opacity-80 hidden items-center justify-center z-50 p-4">
+        <div class="bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-sm border-t-4 border-yellow-500 transform transition-all">
+            <p id="alert-message" class="text-white text-center mb-5 text-lg font-medium"></p>
+            <button id="close-alert-btn" class="btn btn-primary w-full">Okay</button>
+        </div>
+    </div>
+
+    <div class="container relative">
+
+        <!-- HEADER: Title Left - Cleanest Look -->
+        <header class="flex justify-start items-center mb-10 relative">
+            <h1 class="text-4xl font-extrabold text-white text-left">
+                TURN SCHEDULER
+            </h1>
+        </header>
+
+        <!-- Current Status Card -->
+        <div id="status-card" class="card text-center current-turn-card">
+            <p class="text-lg font-semibold text-gray-800">Current Date & Day (Aaj ki Tarikh)</p>
+            <p id="current-date-day" class="text-xl sm:text-2xl font-bold mb-5 text-gray-800"></p>
+            
+            <p class="text-xl font-semibold mb-2 text-gray-800">Current Turn Holder:</p>
+            <p id="current-member" class="font-black mb-4 animate-pulse">...</p>
+            
+            <p id="turn-details" class="text-md font-medium text-gray-800"></p>
+        </div>
+
+        <!-- Settings Card (Hidden by Default, no button to toggle) -->
+        <div class="card hidden">
+            <h2 class="text-xl font-semibold text-white mb-4">Scheduler Settings (Hidden)</h2>
+            
+            <div id="settings-area" class="space-y-5">
+                
+                <!-- Days Per Turn Setting -->
+                <div>
+                    <label for="days-per-turn" class="block text-sm font-medium mb-1 text-gray-300">Days Per Turn (Baari ke Din):</label>
+                    <input type="number" id="days-per-turn" class="input-field" value="3" min="1" placeholder="Number of days">
+                </div>
+                
+                <!-- Start Date Setting -->
+                <div>
+                    <label for="start-date" class="block text-sm font-medium mb-1 text-gray-300">Cycle Start Date (Chakra Shuru Hone ki Tarikh):</label>
+                    <input type="date" id="start-date" class="input-field">
+                    <p class="text-xs text-gray-400 mt-1">Calculation starts from this date.</p>
+                </div>
+
+                <!-- Members List -->
+                <div>
+                    <h3 class="text-md font-medium mb-2 text-white">Members List (Sadasyon ke Naam)</h3>
+                    <div id="members-list" class="space-y-2">
+                        <!-- Member inputs will be added here -->
+                    </div>
+                    <button id="add-member-btn" class="btn btn-secondary w-full mt-3">Add Member (+)</button>
+                </div>
+                
+                <button id="save-settings-btn" class="btn btn-primary w-full mt-5">Save Settings</button>
+            </div>
+
+            <!-- Import/Export functionality kept hidden inside settings for emergency access -->
+            <div id="backup-restore-tools" class="mt-8 border-t border-gray-600 pt-4">
+                <h3 class="text-md font-medium text-white mb-3">Data Backup / Restore (Hidden Tools)</h3>
+                <div class="flex space-x-4">
+                    <button id="export-data-btn" class="btn btn-secondary flex-1 text-sm">Export Data</button>
+                    <input type="file" id="import-file-input" accept="application/json" class="hidden">
+                    <button id="import-data-btn" class="btn btn-secondary flex-1 text-sm">Import Data</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Next Turns List -->
+        <div class="card">
+            <h2 class="text-xl font-semibold mb-4 text-white">Upcoming Turns (Agli Baariyaan)</h2>
+            <div id="next-turns-list" class="space-y-0 -mx-4 -mb-4 overflow-hidden">
+                <p class="text-gray-400 p-4">Loading upcoming turns...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'borewell_scheduler_settings';
+
+        // UPDATED DEFAULT SETTINGS according to your uploaded file
+        window.defaultSettings = {
+            members: ["SURESH", "BHAGCHAND", "RAHUL", "SITARAM"],
+            daysPerTurn: 3,
+            startDate: '2025-11-08',
+        };
+
+        window.currentSettings = { ...window.defaultSettings };
+        
+        // --- Utility Functions (Date & UI) ---
+
+        /**
+         * Custom Alert (Replaces alert())
+         */
+        window.showAlert = function(message) {
+            document.getElementById('alert-message').textContent = message;
+            document.getElementById('custom-alert-modal').classList.remove('hidden');
+            document.getElementById('custom-alert-modal').classList.add('flex');
+        };
+
+        document.getElementById('close-alert-btn').addEventListener('click', () => {
+            document.getElementById('custom-alert-modal').classList.add('hidden');
+            document.getElementById('custom-alert-modal').classList.remove('flex');
+        });
+
+
+        /**
+         * Formats a Date object into Hindi day and date string.
+         * @param {Date} date - The date object.
+         * @returns {string} Formatted string (e.g., "सोमवार, 1 जनवरी 2024")
+         */
+        function formatHindiDate(date) {
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            // Use 'hi-IN' locale for Hindi formatting
+            return date.toLocaleDateString('hi-IN', options);
+        }
+
+        // --- Local Storage Operations ---
+
+        /**
+         * Load settings from Local Storage.
+         */
+        function loadSettings() {
+            try {
+                const storedSettings = localStorage.getItem(STORAGE_KEY);
+                if (storedSettings) {
+                    const parsedSettings = JSON.parse(storedSettings);
+                    // Use the parsed settings, falling back to new defaults if keys are missing
+                    window.currentSettings = { ...window.defaultSettings, ...parsedSettings };
+                }
+            } catch (error) {
+                console.error("Error loading settings from localStorage:", error);
+                // If local storage load fails, use the new defaults defined in the code
+                window.currentSettings = { ...window.defaultSettings };
+                window.showAlert("Error loading data from Local Storage. Using default settings from code.");
+            }
+            
+            // Note: Since settings UI is hidden, we skip updating the inputs on load.
+            // But we need to ensure currentSettings is valid before calculation.
+            window.calculateAndDisplayTurns();
+        }
+
+        /**
+         * Save current settings to Local Storage.
+         * Note: This function is still needed for Import/Export logic, even if the primary UI is hidden.
+         */
+        function saveSettings(settingsToSave, imported = false) {
+            let settings = settingsToSave;
+            if (!settingsToSave) {
+                // If called without data (e.g., by hidden UI for export sync), grab current settings from hidden inputs
+                const daysPerTurnInput = document.getElementById('days-per-turn');
+                const startDateInput = document.getElementById('start-date');
+                const memberInputs = document.querySelectorAll('#members-list input[type="text"]');
+                
+                const daysPerTurn = parseInt(daysPerTurnInput.value);
+                const startDate = startDateInput.value;
+                const members = Array.from(memberInputs).map(input => input.value.trim()).filter(name => name !== '');
+
+                if (members.length === 0 || isNaN(daysPerTurn) || daysPerTurn < 1 || !startDate) {
+                     // If hidden inputs are empty, use currentSettings from memory
+                    settings = window.currentSettings;
+                } else {
+                    // Use data from hidden UI if available
+                    settings = { members, daysPerTurn, startDate };
+                }
+            }
+
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+                window.currentSettings = settings; 
+                window.calculateAndDisplayTurns(); 
+                if (!imported) {
+                    window.showAlert("Settings saved successfully!");
+                }
+                return true;
+            } catch (error) {
+                console.error("Error saving settings to localStorage:", error);
+                window.showAlert("Error saving settings: " + error.message);
+                return false;
+            }
+        }
+
+        // --- UI Management (Settings) - Functions are kept for Import/Export process ---
+        
+        /**
+         * Populates the settings fields and member list based on currentSettings. (Needed for import)
+         */
+        window.updateSettingsUI = function(settings) {
+            document.getElementById('days-per-turn').value = settings.daysPerTurn;
+            document.getElementById('start-date').value = settings.startDate;
+            
+            const membersList = document.getElementById('members-list');
+            membersList.innerHTML = ''; 
+            
+            settings.members.forEach(name => {
+                addMemberInput(name);
+            });
+            if (settings.members.length === 0) {
+                addMemberInput();
+            }
+        };
+        
+        /**
+         * Adds a new input field for a member name. (Needed for import)
+         */
+        function addMemberInput(initialName = "") {
+            const membersList = document.getElementById('members-list');
+            const wrapper = document.createElement('div');
+            wrapper.className = 'member-item';
+            
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.placeholder = 'Member Name';
+            input.value = initialName;
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.innerHTML = '×';
+            deleteBtn.title = 'Remove Member';
+            deleteBtn.className = 'bg-red-600 hover:bg-red-700 text-white font-bold p-2 w-8 h-8 flex items-center justify-center rounded-full text-xl leading-none transition duration-200';
+            deleteBtn.onclick = () => {
+                if (membersList.children.length > 1) {
+                    membersList.removeChild(wrapper);
+                } else {
+                    window.showAlert("You need at least one member.");
+                }
+            };
+
+            wrapper.appendChild(input);
+            wrapper.appendChild(deleteBtn);
+            membersList.appendChild(wrapper);
+        }
+
+        // --- Event Listeners for Hidden Tools (Must be kept for import/export to work) ---
+
+        // These listeners are only attached to the hidden elements inside the second 'card'
+        document.getElementById('save-settings-btn').addEventListener('click', () => saveSettings());
+        document.getElementById('add-member-btn').addEventListener('click', () => addMemberInput());
+
+        document.getElementById('export-data-btn').addEventListener('click', () => {
+            const saveSuccess = saveSettings(null, true); 
+            if (!saveSuccess) return; 
+
+            try {
+                const exportData = {
+                    ...window.currentSettings,
+                    exportedAt: new Date().toISOString()
+                };
+
+                const dataStr = JSON.stringify(exportData, null, 2);
+                const blob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `turn_scheduler_backup_${new Date().toISOString().slice(0, 10)}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                window.showAlert("Settings successfully exported as a JSON file.");
+            } catch (error) {
+                console.error("Export error:", error);
+                window.showAlert("Error exporting data.");
+            }
+        });
+
+        document.getElementById('import-data-btn').addEventListener('click', () => {
+            document.getElementById('import-file-input').click();
+        });
+
+        document.getElementById('import-file-input').addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) {
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const importedSettings = JSON.parse(e.target.result);
+                    
+                    if (!Array.isArray(importedSettings.members) || typeof importedSettings.daysPerTurn !== 'number' || typeof importedSettings.startDate !== 'string') {
+                        throw new Error("Invalid format");
+                    }
+
+                    const success = saveSettings(importedSettings, true);
+                    
+                    if (success) {
+                        window.updateSettingsUI(importedSettings); 
+                        window.showAlert("Data successfully imported and saved! Scheduler updated.");
+                    }
+
+                } catch (error) {
+                    console.error("Import processing error:", error);
+                    window.showAlert("Invalid import file or incorrect data format.");
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = null; 
+        });
+
+
+        // --- Core Calculation Logic ---
+
+        /**
+         * Calculates whose turn it is and the start/end dates of the turn, then updates the UI.
+         */
+        window.calculateAndDisplayTurns = function() {
+            const { members, daysPerTurn, startDate: startDateString } = window.currentSettings;
+
+            if (members.length === 0 || daysPerTurn < 1 || !startDateString) {
+                document.getElementById('current-member').textContent = "Settings Incomplete";
+                document.getElementById('turn-details').innerHTML = `<p class="text-lg font-medium">Please set members and date in Settings.</p>`;
+                document.getElementById('next-turns-list').innerHTML = `<p class="text-gray-400">Update Settings to see schedule.</p>`;
+                document.getElementById('current-date-day').textContent = formatHindiDate(new Date());
+                return;
+            }
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); 
+            const startDate = new Date(startDateString);
+            startDate.setHours(0, 0, 0, 0);
+
+            const diffTime = today.getTime() - startDate.getTime();
+            const elapsedDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+            
+            if (elapsedDays < 0) {
+                 document.getElementById('current-member').textContent = "Waiting to Start";
+                 document.getElementById('turn-details').innerHTML = `<p class="text-lg font-medium">Cycle starts from ${formatHindiDate(startDate)}.</p>`;
+                 document.getElementById('next-turns-list').innerHTML = `<p class="text-gray-400">Waiting for cycle start date...</p>`;
+                 document.getElementById('current-date-day').textContent = formatHindiDate(new Date());
+                 return;
+            }
+
+            const totalCycleDays = members.length * daysPerTurn;
+
+            const dayInCycle = elapsedDays % totalCycleDays; 
+
+            const currentTurnIndex = Math.floor(dayInCycle / daysPerTurn);
+            const currentMember = members[currentTurnIndex];
+
+            const daysInCurrentTurn = dayInCycle % daysPerTurn;
+            const daysToAddForStart = elapsedDays - daysInCurrentTurn;
+            
+            const currentTurnStartDate = new Date(startDate.getTime());
+            currentTurnStartDate.setDate(startDate.getDate() + daysToAddForStart);
+            
+            // Calculate Current Turn End Date
+            const currentTurnEndDate = new Date(currentTurnStartDate.getTime());
+            currentTurnEndDate.setDate(currentTurnStartDate.getDate() + daysPerTurn - 1); 
+
+            // --- Display Current Turn ---
+            
+            document.getElementById('current-date-day').textContent = formatHindiDate(new Date());
+            document.getElementById('current-member').textContent = currentMember;
+
+            const daysLeft = daysPerTurn - daysInCurrentTurn;
+
+            // Updated UI to show Start and End dates
+            document.getElementById('turn-details').innerHTML = `
+                Day ${daysInCurrentTurn + 1} / ${daysPerTurn} | 
+                <span class="text-white">${daysLeft} days remaining</span><br>
+                <span class="font-bold">Turn:</span> ${formatHindiDate(currentTurnStartDate)} to ${formatHindiDate(currentTurnEndDate)}
+            `;
+            
+            // --- Display Next Turns ---
+            
+            let nextTurnsHtml = '';
+            const numTurnsToShow = 5; 
+            
+            // Calculate the date when the *next* turn starts (current turn ends + 1 day)
+            let nextTurnStartDate = new Date(currentTurnEndDate.getTime());
+            nextTurnStartDate.setDate(currentTurnEndDate.getDate() + 1);
+            
+            let memberIndexForNextTurns = currentTurnIndex;
+            
+            for (let i = 0; i < numTurnsToShow; i++) {
+                memberIndexForNextTurns = (memberIndexForNextTurns + 1) % members.length;
+                const nextMember = members[memberIndexForNextTurns];
+                
+                // Calculate the end date for the upcoming turn
+                const tentativeEndDate = new Date(nextTurnStartDate.getTime());
+                tentativeEndDate.setDate(nextTurnStartDate.getDate() + daysPerTurn - 1);
+
+
+                nextTurnsHtml += `
+                    <div class="upcoming-turn-item p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                        <p class="font-semibold text-white text-lg">${nextMember}</p>
+                        <p class="text-sm text-gray-400 text-left sm:text-right mt-1 sm:mt-0">
+                            <span class="font-bold text-gray-200">Start:</span> ${formatHindiDate(nextTurnStartDate)}
+                            <span class="block text-xs text-gray-400">End: ${formatHindiDate(tentativeEndDate)}</span>
+                        </p>
+                    </div>
+                `;
+                
+                // Set the start date for the next iteration: Next turn starts after the current turn length
+                nextTurnStartDate.setDate(nextTurnStartDate.getDate() + daysPerTurn);
+            }
+
+            document.getElementById('next-turns-list').innerHTML = nextTurnsHtml;
+
+        }
+
+        // --- Start Application ---
+        window.onload = loadSettings;
+    </script>
+</body>
+</html>
