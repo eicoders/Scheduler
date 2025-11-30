@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jar Fanmade Status</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <style>
+        :root { --color-primary: #06D6A0; --color-bg-deep: #0a0a0a; --color-bg-card: #1f2937; --color-text: #e5e7eb; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--color-bg-deep); color: var(--color-text); min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; padding: 1rem; }
+        .container { max-width: 600px; width: 100%; }
+        .card { background-color: var(--color-bg-card); padding: 1.5rem; border-radius: 16px; margin-bottom: 1.5rem; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+        .current-turn-card { background: linear-gradient(135deg, var(--color-primary) 0%, #059669 100%); color: #1f2937; text-align: center; padding: 2rem 1.5rem; border-radius: 16px; margin-bottom: 1.5rem; }
+        .current-turn-card #current-member { color: #0a0a0a; font-size: 2.5rem; font-weight: 900; display: block; word-break: break-word; line-height: 1.1; margin-bottom: 1rem; }
+        .upcoming-turn-item { background-color: var(--color-bg-card); border-bottom: 1px solid #374151; transition: background-color 0.2s; }
+        .upcoming-turn-item:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header class="flex justify-center items-center mb-10">
+            <h1 class="text-4xl font-extrabold text-white text-center">Jar Fanmade</h1>
+        </header>
+
+        <div id="status-card" class="current-turn-card">
+            <p class="text-lg font-semibold text-gray-800">Current Date & Day</p>
+            <p id="current-date-day" class="text-xl sm:text-2xl font-bold mb-5 text-gray-800">Loading...</p>
+            
+            <p class="text-xl font-semibold mb-2 text-gray-800">Current Turn Holder:</p>
+            <p id="current-member" class="animate-pulse">Loading...</p>
+            
+            <p id="turn-details" class="text-md font-medium text-gray-800"></p>
+        </div>
+
+        <div class="card">
+            <h2 class="text-xl font-semibold mb-4 text-white">Upcoming Turns</h2>
+            <div id="next-turns-list" class="space-y-0 -mx-4 -mb-4 overflow-hidden">
+                <p class="text-gray-400 p-4">Syncing with Live Database...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- FIREBASE CONFIGURATION ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCG9w-pUJq9FopmIUUPLUVMc03P84Rblgw",
+            authDomain: "jar-ledger.firebaseapp.com",
+            databaseURL: "https://jar-ledger-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "jar-ledger",
+            storageBucket: "jar-ledger.firebasestorage.app",
+            messagingSenderId: "915159281904",
+            appId: "1:915159281904:web:4f3d5c940a03c4b525d235",
+            measurementId: "G-YB740FJBBG"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // --- UI LOGIC ---
+        function formatHindiDate(date) {
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            return date.toLocaleDateString('hi-IN', options);
+        }
+
+        function calculateAndDisplayTurns(settings) {
+            if (!settings || !settings.members || settings.members.length === 0) {
+                document.getElementById('current-member').textContent = "No Data";
+                return;
+            }
+
+            const { members, daysPerTurn, startDate: startDateString } = settings;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); 
+            const startDate = new Date(startDateString);
+            startDate.setHours(0, 0, 0, 0);
+
+            const diffTime = today.getTime() - startDate.getTime();
+            const elapsedDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+            
+            if (elapsedDays < 0) {
+                 document.getElementById('current-member').textContent = "Starting Soon";
+                 document.getElementById('turn-details').innerHTML = `Cycle starts on ${formatHindiDate(startDate)}`;
+                 document.getElementById('current-date-day').textContent = formatHindiDate(new Date());
+                 return;
+            }
+
+            const totalCycleDays = members.length * daysPerTurn;
+            const dayInCycle = elapsedDays % totalCycleDays; 
+            const currentTurnIndex = Math.floor(dayInCycle / daysPerTurn);
+            const currentMember = members[currentTurnIndex];
+            const daysInCurrentTurn = dayInCycle % daysPerTurn;
+            const daysLeft = daysPerTurn - daysInCurrentTurn;
+
+            // Dates Logic
+            const daysToAddForStart = elapsedDays - daysInCurrentTurn;
+            const currentTurnStartDate = new Date(startDate.getTime());
+            currentTurnStartDate.setDate(startDate.getDate() + daysToAddForStart);
+            const currentTurnEndDate = new Date(currentTurnStartDate.getTime());
+            currentTurnEndDate.setDate(currentTurnStartDate.getDate() + daysPerTurn - 1); 
+
+            // UI Updates
+            document.getElementById('current-date-day').textContent = formatHindiDate(new Date());
+            document.getElementById('current-member').textContent = currentMember;
+            document.getElementById('turn-details').innerHTML = `
+                Day ${daysInCurrentTurn + 1} / ${daysPerTurn} | 
+                <span class="text-white font-bold">${daysLeft} days remaining</span><br>
+                <span class="text-sm">${formatHindiDate(currentTurnStartDate)} - ${formatHindiDate(currentTurnEndDate)}</span>
+            `;
+            
+            // Upcoming List
+            let nextTurnsHtml = '';
+            let nextTurnStartDate = new Date(currentTurnEndDate.getTime());
+            nextTurnStartDate.setDate(currentTurnEndDate.getDate() + 1);
+            let memberIndexForNextTurns = currentTurnIndex;
+            
+            for (let i = 0; i < 5; i++) {
+                memberIndexForNextTurns = (memberIndexForNextTurns + 1) % members.length;
+                const nextMember = members[memberIndexForNextTurns];
+                const tentativeEndDate = new Date(nextTurnStartDate.getTime());
+                tentativeEndDate.setDate(nextTurnStartDate.getDate() + daysPerTurn - 1);
+
+                nextTurnsHtml += `
+                    <div class="upcoming-turn-item p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                        <p class="font-semibold text-white text-lg">${nextMember}</p>
+                        <p class="text-sm text-gray-400 text-left sm:text-right mt-1 sm:mt-0">
+                            <span class="font-bold text-gray-200">${formatHindiDate(nextTurnStartDate)}</span>
+                            <span class="block text-xs text-gray-400">to ${formatHindiDate(tentativeEndDate)}</span>
+                        </p>
+                    </div>
+                `;
+                nextTurnStartDate.setDate(nextTurnStartDate.getDate() + daysPerTurn);
+            }
+            document.getElementById('next-turns-list').innerHTML = nextTurnsHtml;
+        }
+
+        // --- REALTIME LISTENER ---
+        // यह लाइन Firebase पर नज़र रखती है, जैसे ही Admin डाटा बदलेगा, यह पेज अपने आप बदल जाएगा
+        const settingsRef = db.ref('borewell_settings');
+        settingsRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                calculateAndDisplayTurns(data);
+            } else {
+                document.getElementById('current-member').textContent = "No Setup Found";
+            }
+        });
+    </script>
+</body>
+</html>
